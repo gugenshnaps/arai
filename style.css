@@ -402,3 +402,65 @@ html, body {
   }
   #talk-icon { font-size: 1.9rem; }
 }
+
+/* ===== AR Enter Button (Three.js ARButton override) ===== */
+#ar-enter-btn {
+  /* Reset Three.js inline styles */
+  position: static !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: auto !important;
+  padding: 10px 22px !important;
+  margin-bottom: 4px;
+
+  background: rgba(0, 245, 255, 0.12) !important;
+  border: 1px solid var(--neon-cyan) !important;
+  border-radius: var(--radius-full) !important;
+  color: var(--neon-cyan) !important;
+
+  font-family: 'Courier New', monospace !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2em !important;
+  text-transform: uppercase !important;
+
+  cursor: pointer !important;
+  opacity: 1 !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 0 12px rgba(0, 245, 255, 0.25);
+  transition:
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#ar-enter-btn:hover {
+  background: rgba(0, 245, 255, 0.22) !important;
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.45) !important;
+}
+
+/* AR hint label shown while scanning for surfaces */
+#ar-hint {
+  position: absolute;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  padding: 6px 18px;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+#ar-hint.visible {
+  opacity: 1;
+}

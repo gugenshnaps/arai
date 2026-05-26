@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { loadAvatar, updateAvatar, playExpression } from './avatar.js';
 import { askAI } from './ai.js';
 import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
+import { isARSupported, initAR, updateAR, animateARObjects } from './ar.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 const video         = document.getElementById('camera');
@@ -110,6 +111,7 @@ function buildScene() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.xr.enabled = true; // needed for WebXR AR mode
 
   const scene = new THREE.Scene();
 
@@ -222,7 +224,7 @@ function hideLoader() {
   setTimeout(() => loaderEl.remove(), 600);
 }
 
-function init() {
+async function init() {
   // 1. Build Three.js scene FIRST so UI feels alive
   let scene, camera, renderer;
   try {
@@ -250,7 +252,6 @@ function init() {
   // 4. Load avatar in background with timeout
   loadAvatar(scene, {
     onProgress: (val) => {
-      // Only show progress if we're still in ready state and haven't talked yet
       if (appState === 'ready' && !userText.classList.contains('visible')) {
         statusText.textContent = `Аватар ${val}`;
       }
@@ -260,16 +261,28 @@ function init() {
     },
   }).catch((err) => {
     console.error('Avatar failed to load:', err);
-    // Don't show as error — AI still works without avatar
   });
 
-  // 5. Render loop — always runs even without avatar
-  function animate(timestamp) {
-    requestAnimationFrame(animate);
-    updateAvatar(timestamp);
+  // 5. Check WebXR AR support and add AR button if available
+  try {
+    const arSupported = await isARSupported();
+    if (arSupported) {
+      const arBtn = initAR(renderer, scene);
+      document.getElementById('controls').prepend(arBtn);
+    }
+  } catch (err) {
+    console.warn('AR setup failed:', err);
+  }
+
+  // 6. Render loop — setAnimationLoop works both in normal and XR mode
+  //    frame is non-null only during an active WebXR AR session
+  function animate(time, frame) {
+    updateAR(frame, renderer);
+    animateARObjects(scene, time);
+    updateAvatar(time);
     renderer.render(scene, camera);
   }
-  animate();
+  renderer.setAnimationLoop(animate);
 }
 
 // Wire buttons

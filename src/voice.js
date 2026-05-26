@@ -62,6 +62,14 @@ function pickVoice(lang) {
   );
 }
 
+/** Strip emoji and special unicode characters that TTS reads aloud weirdly */
+function cleanForSpeech(text) {
+  return text
+    .replace(/[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{1F000}-\u{1FFFF}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 let currentUtterance = null;
 
 /**
@@ -71,6 +79,7 @@ let currentUtterance = null;
  * @returns {Promise<void>} resolves when speech ends
  */
 export function speak(text, lang = LANG) {
+  text = cleanForSpeech(text);
   return new Promise((resolve) => {
     window.speechSynthesis.cancel();
 

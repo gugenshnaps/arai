@@ -2,16 +2,15 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-// VRM avatar URL — free sample hosted on pixiv GitHub Pages
-const VRM_URL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm';
+// VRM avatar — Alicia Solid (free MIT model, proper character, not a rig sample)
+const VRM_URL = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Alicia_Solid.vrm';
 
 let vrm = null;
-const timer = new THREE.Timer();
 let idleTime = 0;
+let lastTimestamp = 0;
 
 /**
  * Load and add VRM avatar to the scene.
- * Calls onProgress(percent) during load, onLoaded() when done.
  */
 export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) {
   const loader = new GLTFLoader();
@@ -26,7 +25,7 @@ export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) 
         VRMUtils.removeUnnecessaryVertices(gltf.scene);
         VRMUtils.combineSkeletons(gltf.scene);
 
-        // Face camera (VRM models face -Z by default)
+        // rotateVRM0 only affects VRM 0.x models — safe to call for both versions
         VRMUtils.rotateVRM0(vrm);
 
         scene.add(vrm.scene);
@@ -38,9 +37,8 @@ export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) 
       (progress) => {
         if (progress.lengthComputable) {
           const pct = Math.round((progress.loaded / progress.total) * 100);
-          onProgress?.(pct);
+          onProgress?.(`${pct}%`);
         } else {
-          // Server doesn't send Content-Length — report bytes loaded instead
           const kb = Math.round(progress.loaded / 1024);
           onProgress?.(`${kb} KB`);
         }
@@ -54,48 +52,64 @@ export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) 
   });
 }
 
-/** Position & scale avatar to be centered and fill ~55% of viewport height */
+/** Scale and center the avatar in the viewport */
 function _positionAvatar() {
   if (!vrm) return;
 
+  // Measure bounding box
   const box = new THREE.Box3().setFromObject(vrm.scene);
   const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
   box.getSize(size);
+  box.getCenter(center);
 
-  const targetHeight = window.innerHeight * 0.0014; // scale factor for perspective camera
+  // Target: avatar fills ~60% of viewport height
+  // Camera is at z=3.5 with FOV=35, so visible height at z=0 ≈ 2*tan(17.5°)*3.5 ≈ 2.2 units
+  const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(17.5)) * 3.5;
+  const targetHeight = visibleHeight * 0.65;
   const scale = targetHeight / size.y;
+
   vrm.scene.scale.setScalar(scale);
 
-  // Re-center after scaling
-  const center = new THREE.Vector3();
-  box.getCenter(center);
-  vrm.scene.position.set(-center.x * scale, -center.y * scale + 0.05, 0);
+  // Center horizontally, position vertically so feet are near bottom quarter
+  vrm.scene.position.set(
+    -center.x * scale,
+    -center.y * scale - visibleHeight * 0.18,
+    0
+  );
 }
 
 /**
- * Called every animation frame.
- * @param {number} timestamp — passed from requestAnimationFrame
+ * Called every animation frame — drives idle float, head sway, blinking.
+ * @param {number} timestamp — from requestAnimationFrame
  */
 export function updateAvatar(timestamp) {
   if (!vrm) return;
 
-  timer.update(timestamp);
-  const delta = timer.getDelta();
+  // Universal delta calculation — no THREE.Timer dependency
+  const delta = lastTimestamp ? Math.min((timestamp - lastTimestamp) / 1000, 0.1) : 0;
+  lastTimestamp = timestamp;
   idleTime += delta;
 
-  // Gentle floating up/down
-  vrm.scene.position.y += Math.sin(idleTime * 1.2) * 0.0003;
+  // Gentle floating
+  vrm.scene.position.y += Math.sin(idleTime * 1.1) * 0.0002;
 
-  // Subtle head look-around via VRM humanoid
   if (vrm.humanoid) {
+    // Slow head look-around
     const head = vrm.humanoid.getNormalizedBoneNode('head');
     if (head) {
-      head.rotation.y = Math.sin(idleTime * 0.4) * 0.12;
-      head.rotation.x = Math.sin(idleTime * 0.3) * 0.04;
+      head.rotation.y = Math.sin(idleTime * 0.35) * 0.1;
+      head.rotation.x = Math.sin(idleTime * 0.28) * 0.04;
+    }
+
+    // Subtle spine sway
+    const spine = vrm.humanoid.getNormalizedBoneNode('spine');
+    if (spine) {
+      spine.rotation.z = Math.sin(idleTime * 0.5) * 0.02;
     }
   }
 
-  // Blink via blendShapes every ~4 seconds
+  // Blink every ~4 seconds
   if (vrm.expressionManager) {
     const blinkCycle = idleTime % 4;
     if (blinkCycle > 3.85) {
@@ -111,7 +125,7 @@ export function updateAvatar(timestamp) {
   vrm.update(delta);
 }
 
-/** Play a named expression (for future emotion support). */
+/** Play a named expression (happy, sad, angry, relaxed…) */
 export function playExpression(name, weight = 1, duration = 800) {
   if (!vrm?.expressionManager) return;
   vrm.expressionManager.setValue(name, weight);

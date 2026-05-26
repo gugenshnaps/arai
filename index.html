@@ -2,7 +2,7 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -10,55 +10,59 @@
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <!-- Camera background -->
-    <video id="camera" autoplay playsinline muted></video>
+    <!-- Single fixed wrapper — prevents long-page bug in Telegram WebView -->
+    <div id="app">
 
-    <!-- Three.js canvas overlay -->
-    <canvas id="three-canvas"></canvas>
+      <!-- Camera background -->
+      <video id="camera" autoplay playsinline muted></video>
 
-    <!-- UI Layer -->
-    <div id="ui">
-      <!-- Top header -->
-      <div id="header">
-        <div id="logo">AR <span>AI</span></div>
-        <div id="status-dot"></div>
-      </div>
+      <!-- Three.js canvas overlay -->
+      <canvas id="three-canvas"></canvas>
 
-      <!-- Status message -->
-      <div id="status-bar">
-        <span id="status-text">Инициализация...</span>
-      </div>
+      <!-- UI Layer -->
+      <div id="ui">
+        <!-- Top header -->
+        <div id="header">
+          <div id="logo">AR <span>AI</span></div>
+          <div id="status-dot"></div>
+        </div>
 
-      <!-- Transcript display -->
-      <div id="transcript-box">
-        <div id="user-text"></div>
-        <div id="ai-text"></div>
-      </div>
+        <!-- Status message -->
+        <div id="status-bar">
+          <span id="status-text">Инициализация...</span>
+        </div>
 
-      <!-- Controls -->
-      <div id="controls">
-        <button id="talk-btn" aria-label="Говорить с AI" disabled>
-          <span id="talk-icon">🎤</span>
-          <span id="talk-label">TALK</span>
-        </button>
+        <!-- Transcript display -->
+        <div id="transcript-box">
+          <div id="user-text"></div>
+          <div id="ai-text"></div>
+        </div>
 
-        <!-- Text input fallback (shown when voice is unavailable) -->
-        <div id="text-input-row" style="display:none">
-          <input id="text-input" type="text" placeholder="Напиши сообщение..." autocomplete="off" />
-          <button id="send-btn" aria-label="Отправить">→</button>
+        <!-- Controls -->
+        <div id="controls">
+          <button id="talk-btn" aria-label="Говорить с AI" disabled>
+            <span id="talk-icon">🎤</span>
+            <span id="talk-label">TALK</span>
+          </button>
+
+          <!-- Text input fallback (shown when voice is unavailable) -->
+          <div id="text-input-row" style="display:none">
+            <input id="text-input" type="text" placeholder="Напиши сообщение..." autocomplete="off" />
+            <button id="send-btn" aria-label="Отправить">→</button>
+          </div>
         </div>
       </div>
-    </div>
+
+    </div><!-- /#app -->
 
     <script type="module" src="/src/main.js"></script>
 
-    <!-- Fallback: if main.js fails to load (old browser, JS error), unblock the UI -->
+    <!-- Safety net: if JS fails to run within 6s, show a hint -->
     <script>
       setTimeout(function() {
         var st = document.getElementById('status-text');
-        var btn = document.getElementById('talk-btn');
         if (st && st.textContent === 'Инициализация...') {
-          st.textContent = 'Обнови браузер до последней версии';
+          st.textContent = 'Открой в Chrome или Safari';
           st.style.color = '#ff4466';
         }
       }, 6000);

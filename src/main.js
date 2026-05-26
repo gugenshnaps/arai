@@ -174,12 +174,16 @@ async function handleTalk() {
   try {
     transcript = await startListening();
   } catch (err) {
-    // service-not-allowed = browser/WebView blocks mic → switch to text input
-    if (err.message.includes('service-not-allowed') || err.message.includes('not-allowed')) {
+    const msg = err.message || '';
+    if (msg.includes('service-not-allowed')) {
+      // Browser / WebView permanently blocks SpeechRecognition → text input
       showTextInput();
       setState('ready');
+    } else if (msg.includes('not-allowed')) {
+      // User denied mic permission → guide them to fix it
+      showError('Разреши микрофон: Настройки → Safari → Микрофон');
     } else {
-      showError(err.message);
+      showError(msg || 'Ошибка распознавания');
     }
     return;
   }

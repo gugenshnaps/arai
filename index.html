@@ -41,6 +41,12 @@
           <span id="talk-icon">🎤</span>
           <span id="talk-label">TALK</span>
         </button>
+
+        <!-- Text input fallback (shown when voice is unavailable) -->
+        <div id="text-input-row" style="display:none">
+          <input id="text-input" type="text" placeholder="Напиши сообщение..." autocomplete="off" />
+          <button id="send-btn" aria-label="Отправить">→</button>
+        </div>
       </div>
     </div>
 

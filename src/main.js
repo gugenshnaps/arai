@@ -4,15 +4,18 @@ import { askAI } from './ai.js';
 import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
-const video      = document.getElementById('camera');
-const canvas     = document.getElementById('three-canvas');
-const talkBtn    = document.getElementById('talk-btn');
-const talkIcon   = document.getElementById('talk-icon');
-const talkLabel  = document.getElementById('talk-label');
-const statusText = document.getElementById('status-text');
-const statusDot  = document.getElementById('status-dot');
-const userText   = document.getElementById('user-text');
-const aiText     = document.getElementById('ai-text');
+const video         = document.getElementById('camera');
+const canvas        = document.getElementById('three-canvas');
+const talkBtn       = document.getElementById('talk-btn');
+const talkIcon      = document.getElementById('talk-icon');
+const talkLabel     = document.getElementById('talk-label');
+const statusText    = document.getElementById('status-text');
+const statusDot     = document.getElementById('status-dot');
+const userText      = document.getElementById('user-text');
+const aiText        = document.getElementById('ai-text');
+const textInputRow  = document.getElementById('text-input-row');
+const textInput     = document.getElementById('text-input');
+const sendBtn       = document.getElementById('send-btn');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let appState = 'loading'; // loading | ready | listening | thinking | speaking
@@ -139,33 +142,10 @@ function buildScene() {
   return { renderer, scene, camera };
 }
 
-// ── Talk flow ─────────────────────────────────────────────────────────────
-async function handleTalk() {
-  if (appState !== 'ready') return;
-
-  // Lazy-start camera on first TALK click — works around iOS autoplay restrictions
-  if (!cameraStarted) startCamera();
-
-  hideTranscript();
-
-  // 1. Listen
-  setState('listening');
-  let transcript;
-  try {
-    transcript = await startListening();
-  } catch (err) {
-    showError(err.message);
-    return;
-  }
-
-  if (!transcript) {
-    showError('Ничего не услышал.');
-    return;
-  }
-
+// ── Shared AI response flow ───────────────────────────────────────────────
+async function handleAIResponse(transcript) {
   showTranscript(transcript, null);
 
-  // 2. Ask AI
   setState('thinking');
   let reply;
   try {
@@ -176,13 +156,53 @@ async function handleTalk() {
   }
 
   showTranscript(null, reply);
-
-  // 3. Speak
   setState('speaking');
   playExpression('happy', 0.7, 1500);
   await speak(reply);
-
   setState('ready');
+}
+
+// ── Talk button (voice) ───────────────────────────────────────────────────
+async function handleTalk() {
+  if (appState !== 'ready') return;
+
+  if (!cameraStarted) startCamera();
+  hideTranscript();
+
+  setState('listening');
+  let transcript;
+  try {
+    transcript = await startListening();
+  } catch (err) {
+    // service-not-allowed = browser/WebView blocks mic → switch to text input
+    if (err.message.includes('service-not-allowed') || err.message.includes('not-allowed')) {
+      showTextInput();
+      setState('ready');
+    } else {
+      showError(err.message);
+    }
+    return;
+  }
+
+  if (!transcript) { showError('Ничего не услышал.'); return; }
+  await handleAIResponse(transcript);
+}
+
+// ── Text input fallback ───────────────────────────────────────────────────
+function showTextInput() {
+  talkBtn.style.display = 'none';
+  textInputRow.style.display = 'flex';
+  statusText.textContent = 'Напиши сообщение';
+  textInput.focus();
+}
+
+async function handleTextSend() {
+  const text = textInput.value.trim();
+  if (!text || appState !== 'ready') return;
+  textInput.value = '';
+  hideTranscript();
+  if (!cameraStarted) startCamera();
+  await handleAIResponse(text);
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -248,8 +268,12 @@ function init() {
   animate();
 }
 
-// Wire Talk button
+// Wire buttons
 talkBtn.addEventListener('click', handleTalk);
+sendBtn.addEventListener('click', handleTextSend);
+textInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') handleTextSend();
+});
 
 // Kick off
 init();

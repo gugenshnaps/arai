@@ -65,7 +65,11 @@ function pickVoice(lang) {
 /** Strip emoji and special unicode characters that TTS reads aloud weirdly */
 function cleanForSpeech(text) {
   return text
-    .replace(/[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{1F000}-\u{1FFFF}]/gu, '')
+    // Remove all extended pictographic characters (covers every emoji)
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    // Remove variation selectors and ZWJ used in emoji sequences
+    .replace(/[\u200D\uFE00-\uFE0F]/g, '')
+    // Collapse spaces
     .replace(/\s{2,}/g, ' ')
     .trim();
 }

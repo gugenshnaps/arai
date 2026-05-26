@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { loadAvatar, updateAvatar, playExpression } from './avatar.js';
 import { askAI } from './ai.js';
-import { startListening, speak, isSpeechRecognitionSupported, stopSpeaking } from './voice.js';
+import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 const video      = document.getElementById('camera');
@@ -16,6 +16,7 @@ const aiText     = document.getElementById('ai-text');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let appState = 'loading'; // loading | ready | listening | thinking | speaking
+let cameraStarted = false;
 
 // ── Status helpers ────────────────────────────────────────────────────────
 const STATUS_MESSAGES = {
@@ -69,23 +70,29 @@ function hideTranscript() {
   aiText.classList.remove('visible');
 }
 
-// ── Camera setup ──────────────────────────────────────────────────────────
+// ── Camera setup (non-blocking) ───────────────────────────────────────────
 async function startCamera() {
+  if (cameraStarted) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    console.warn('getUserMedia not available');
+    return;
+  }
   try {
-    const constraints = {
+    const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: { ideal: 'environment' }, // rear camera on mobile
+        facingMode: { ideal: 'environment' },
         width:  { ideal: 1280 },
         height: { ideal: 720 },
       },
       audio: false,
-    };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    });
     video.srcObject = stream;
-    await video.play();
+    // Don't await play() — it can hang on iOS Safari due to autoplay policy.
+    // The video element has autoplay+playsinline+muted so it will start automatically.
+    video.play().catch((err) => console.warn('video.play() warning:', err));
+    cameraStarted = true;
   } catch (err) {
-    console.warn('Camera unavailable, running without AR background:', err);
-    // Graceful fallback: dark background is shown via CSS body background
+    console.warn('Camera unavailable:', err);
   }
 }
 
@@ -93,7 +100,7 @@ async function startCamera() {
 function buildScene() {
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    alpha: true,       // transparent so camera shows through
+    alpha: true,
     antialias: true,
     powerPreference: 'high-performance',
   });
@@ -103,7 +110,6 @@ function buildScene() {
 
   const scene = new THREE.Scene();
 
-  // Perspective camera — FOV tuned for portrait mobile
   const camera = new THREE.PerspectiveCamera(
     35,
     window.innerWidth / window.innerHeight,
@@ -113,19 +119,17 @@ function buildScene() {
   camera.position.set(0, 1.35, 3.5);
   camera.lookAt(0, 1.0, 0);
 
-  // Lighting: ambient base + cyan rim + soft fill
-  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambient);
 
   const rimLight = new THREE.DirectionalLight(0x00f5ff, 1.8);
   rimLight.position.set(2, 3, -2);
   scene.add(rimLight);
 
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.7);
   fillLight.position.set(-1, 2, 3);
   scene.add(fillLight);
 
-  // Handle resize
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -138,6 +142,9 @@ function buildScene() {
 // ── Talk flow ─────────────────────────────────────────────────────────────
 async function handleTalk() {
   if (appState !== 'ready') return;
+
+  // Lazy-start camera on first TALK click — works around iOS autoplay restrictions
+  if (!cameraStarted) startCamera();
 
   hideTranscript();
 
@@ -152,7 +159,7 @@ async function handleTalk() {
   }
 
   if (!transcript) {
-    showError('Ничего не услышал. Попробуй ещё раз.');
+    showError('Ничего не услышал.');
     return;
   }
 
@@ -186,47 +193,53 @@ loaderEl.id = 'avatar-loader';
 loaderEl.innerHTML = '<div class="loader-ring"></div>';
 document.body.appendChild(loaderEl);
 
-async function init() {
-  // Start camera in parallel with scene build
-  await Promise.allSettled([startCamera()]);
+function hideLoader() {
+  loaderEl.classList.add('hidden');
+  setTimeout(() => loaderEl.remove(), 600);
+}
 
-  const { renderer, scene, camera } = buildScene();
-
-  // Load VRM avatar — 40 second timeout so UI never stays stuck
-  statusText.textContent = 'Загрузка аватара...';
-  const AVATAR_TIMEOUT_MS = 40_000;
-
+function init() {
+  // 1. Build Three.js scene FIRST so UI feels alive
+  let scene, camera, renderer;
   try {
-    await Promise.race([
-      loadAvatar(scene, {
-        onProgress: (val) => {
-          statusText.textContent = `Загрузка аватара ${val}`;
-        },
-        onLoaded: () => {
-          loaderEl.classList.add('hidden');
-          setTimeout(() => loaderEl.remove(), 600);
-        },
-      }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: аватар не загрузился за 40 сек')), AVATAR_TIMEOUT_MS)
-      ),
-    ]);
+    ({ renderer, scene, camera } = buildScene());
   } catch (err) {
-    console.error('Avatar failed to load:', err);
-    loaderEl.classList.add('hidden');
-    setTimeout(() => loaderEl.remove(), 600);
-    statusText.textContent = 'Аватар не загружен — ИИ работает';
+    console.error('WebGL init failed:', err);
+    hideLoader();
+    statusText.textContent = 'WebGL не поддерживается';
+    return;
   }
 
-  // Validate speech support
+  // 2. Set UI to ready state — user can press TALK even before avatar loads
   if (!isSpeechRecognitionSupported()) {
-    talkBtn.disabled = true;
-    showError('SpeechRecognition не поддерживается. Используй Chrome.');
+    statusText.textContent = 'Открой в Safari или Chrome';
+    statusText.classList.add('error');
+    hideLoader();
   } else {
     setState('ready');
+    hideLoader();
   }
 
-  // Render loop
+  // 3. Start camera in background — never blocks anything
+  startCamera();
+
+  // 4. Load avatar in background with timeout
+  loadAvatar(scene, {
+    onProgress: (val) => {
+      // Only show progress if we're still in ready state and haven't talked yet
+      if (appState === 'ready' && !userText.classList.contains('visible')) {
+        statusText.textContent = `Аватар ${val}`;
+      }
+    },
+    onLoaded: () => {
+      if (appState === 'ready') setState('ready');
+    },
+  }).catch((err) => {
+    console.error('Avatar failed to load:', err);
+    // Don't show as error — AI still works without avatar
+  });
+
+  // 5. Render loop — always runs even without avatar
   function animate(timestamp) {
     requestAnimationFrame(animate);
     updateAvatar(timestamp);

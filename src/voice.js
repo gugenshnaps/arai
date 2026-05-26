@@ -50,15 +50,16 @@ export function startListening() {
 
 // ── Speech Synthesis ─────────────────────────────────────────────────────
 
-/** Pick the best available voice for the given language */
+/** Pick the best available voice — falls back to any voice if Russian not found */
 function pickVoice(lang) {
   const voices = window.speechSynthesis.getVoices();
-  // Prefer a female Russian voice for the AR companion feel
+  if (!voices.length) return null;
   return (
     voices.find((v) => v.lang === lang && v.name.toLowerCase().includes('female')) ||
     voices.find((v) => v.lang === lang) ||
     voices.find((v) => v.lang.startsWith(lang.split('-')[0])) ||
-    null
+    voices.find((v) => v.default) ||
+    voices[0]
   );
 }
 

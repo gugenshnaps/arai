@@ -45,5 +45,17 @@
     </div>
 
     <script type="module" src="/src/main.js"></script>
+
+    <!-- Fallback: if main.js fails to load (old browser, JS error), unblock the UI -->
+    <script>
+      setTimeout(function() {
+        var st = document.getElementById('status-text');
+        var btn = document.getElementById('talk-btn');
+        if (st && st.textContent === 'Инициализация...') {
+          st.textContent = 'Обнови браузер до последней версии';
+          st.style.color = '#ff4466';
+        }
+      }, 6000);
+    </script>
   </body>
 </html>

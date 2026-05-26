@@ -62,14 +62,18 @@ function pickVoice(lang) {
   );
 }
 
-/** Strip emoji and special unicode characters that TTS reads aloud weirdly */
+/** Strip emoji — uses explicit Unicode ranges for maximum browser compatibility */
 function cleanForSpeech(text) {
   return text
-    // Remove all extended pictographic characters (covers every emoji)
-    .replace(/\p{Extended_Pictographic}/gu, '')
-    // Remove variation selectors and ZWJ used in emoji sequences
+    // Emoticons, misc symbols, dingbats, transport, misc pictographs
+    .replace(/[\u2600-\u27BF]/g, '')
+    // Enclosed chars, supplemental arrows
+    .replace(/[\u2B00-\u2BFF]/g, '')
+    // Miscellaneous symbols and pictographs, emoticons (most emoji live here)
+    .replace(/[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
+    // Variation selectors + ZWJ used in emoji sequences
     .replace(/[\u200D\uFE00-\uFE0F]/g, '')
-    // Collapse spaces
+    // Collapse extra spaces left by removals
     .replace(/\s{2,}/g, ' ')
     .trim();
 }

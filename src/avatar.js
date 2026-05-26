@@ -39,6 +39,10 @@ export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) 
         if (progress.lengthComputable) {
           const pct = Math.round((progress.loaded / progress.total) * 100);
           onProgress?.(pct);
+        } else {
+          // Server doesn't send Content-Length — report bytes loaded instead
+          const kb = Math.round(progress.loaded / 1024);
+          onProgress?.(`${kb} KB`);
         }
       },
       (error) => {

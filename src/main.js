@@ -192,22 +192,30 @@ async function init() {
 
   const { renderer, scene, camera } = buildScene();
 
-  // Load VRM avatar
+  // Load VRM avatar — 40 second timeout so UI never stays stuck
+  statusText.textContent = 'Загрузка аватара...';
+  const AVATAR_TIMEOUT_MS = 40_000;
+
   try {
-    await loadAvatar(scene, {
-      onProgress: (pct) => {
-        statusText.textContent = `Загрузка аватара ${pct}%`;
-      },
-      onLoaded: () => {
-        loaderEl.classList.add('hidden');
-        setTimeout(() => loaderEl.remove(), 600);
-      },
-    });
+    await Promise.race([
+      loadAvatar(scene, {
+        onProgress: (val) => {
+          statusText.textContent = `Загрузка аватара ${val}`;
+        },
+        onLoaded: () => {
+          loaderEl.classList.add('hidden');
+          setTimeout(() => loaderEl.remove(), 600);
+        },
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: аватар не загрузился за 40 сек')), AVATAR_TIMEOUT_MS)
+      ),
+    ]);
   } catch (err) {
     console.error('Avatar failed to load:', err);
     loaderEl.classList.add('hidden');
     setTimeout(() => loaderEl.remove(), 600);
-    statusText.textContent = 'Аватар не загружен';
+    statusText.textContent = 'Аватар не загружен — ИИ работает';
   }
 
   // Validate speech support

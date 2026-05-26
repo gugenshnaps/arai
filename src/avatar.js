@@ -139,3 +139,19 @@ export function playExpression(name, weight = 1, duration = 800) {
 export function isAvatarLoaded() {
   return vrm !== null;
 }
+
+/**
+ * Place the avatar at an absolute world position (used in XR8 SLAM mode).
+ * The avatar stands upright at the given floor position.
+ * @param {THREE.Vector3} worldPos - position returned by XR8 hit test
+ */
+export function placeAvatarAtWorld(worldPos) {
+  if (!vrm) return;
+  const box = new THREE.Box3().setFromObject(vrm.scene);
+  const height = box.max.y - box.min.y;
+  vrm.scene.position.set(worldPos.x, worldPos.y, worldPos.z);
+  // Correct for the fact that avatar origin may not be at feet
+  vrm.scene.position.y -= box.min.y * vrm.scene.scale.y;
+  vrm.scene.scale.setScalar(0.8); // reasonable real-world scale ~1.5m tall
+  vrm.scene.rotation.y = 0;
+}

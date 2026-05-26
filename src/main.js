@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { loadAvatar, updateAvatar, playExpression } from './avatar.js';
+import { loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } from './avatar.js';
 import { askAI } from './ai.js';
 import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
 import { isARSupported, initAR, updateAR, animateARObjects } from './ar.js';
+import { isXR8Loaded, onXR8Ready, startXR8 } from './xr8.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 const video         = document.getElementById('camera');
@@ -21,6 +22,7 @@ const sendBtn       = document.getElementById('send-btn');
 // ── State ─────────────────────────────────────────────────────────────────
 let appState = 'loading'; // loading | ready | listening | thinking | speaking
 let cameraStarted = false;
+let xr8Mode = false; // true when running inside 8th Wall SLAM
 
 // ── Status helpers ────────────────────────────────────────────────────────
 const STATUS_MESSAGES = {
@@ -263,7 +265,7 @@ async function init() {
     console.error('Avatar failed to load:', err);
   });
 
-  // 5. Check WebXR AR support and add AR button if available
+  // 5a. Check WebXR AR support (Android Chrome / Vision Pro)
   try {
     const arSupported = await isARSupported();
     if (arSupported) {
@@ -271,8 +273,20 @@ async function init() {
       document.getElementById('controls').prepend(arBtn);
     }
   } catch (err) {
-    console.warn('AR setup failed:', err);
+    console.warn('WebXR AR setup failed:', err);
   }
+
+  // 5b. Check 8th Wall SLAM support (iOS Safari + all browsers)
+  //     XR8 loads asynchronously via <script> tag in index.html
+  onXR8Ready(() => {
+    if (!document.getElementById('xr8-btn')) {
+      const btn = document.createElement('button');
+      btn.id = 'xr8-btn';
+      btn.textContent = '🌍 ENTER AR';
+      btn.addEventListener('click', enterXR8Mode);
+      document.getElementById('controls').prepend(btn);
+    }
+  });
 
   // 6. Render loop — setAnimationLoop works both in normal and XR mode
   //    frame is non-null only during an active WebXR AR session
@@ -283,6 +297,66 @@ async function init() {
     renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(animate);
+}
+
+// ── XR8 SLAM AR mode ──────────────────────────────────────────────────────────
+
+function enterXR8Mode() {
+  xr8Mode = true;
+
+  // Swap visuals: hide camera feed + old canvas, show xr8 canvas
+  const xrCanvas = document.getElementById('xr-canvas');
+  document.getElementById('camera').style.display = 'none';
+  document.getElementById('three-canvas').style.display = 'none';
+  xrCanvas.style.display = 'block';
+
+  // Hide WebXR button if present (not needed in XR8 mode)
+  const webxrBtn = document.getElementById('ar-enter-btn');
+  if (webxrBtn) webxrBtn.style.display = 'none';
+
+  // Hide the XR8 entry button itself
+  const xr8Btn = document.getElementById('xr8-btn');
+  if (xr8Btn) xr8Btn.style.display = 'none';
+
+  statusText.textContent = 'Наводи камеру на пол...';
+  statusText.classList.remove('error');
+
+  startXR8(xrCanvas, {
+    onSceneReady: (scene) => {
+      // Load avatar into XR8's Three.js scene
+      loadAvatar(scene, {
+        onProgress: (val) => {
+          if (appState !== 'listening' && appState !== 'thinking') {
+            statusText.textContent = `Загрузка аватара ${val}`;
+          }
+        },
+        onLoaded: () => setState('ready'),
+      }).catch((err) => console.error('Avatar load error in XR8:', err));
+    },
+
+    onSurfaceFound: () => {
+      if (appState === 'loading' || statusText.textContent.includes('Наводи')) {
+        statusText.textContent = 'Тапни чтобы поставить персонажа';
+      }
+    },
+
+    onAvatarPlace: (position) => {
+      placeAvatarAtWorld(position);
+      if (appState === 'ready') {
+        statusText.textContent = 'Готов — нажми TALK';
+      }
+    },
+
+    onFrame: (time) => {
+      updateAvatar(time);
+      animateARObjects(
+        // pass a stub scene — animateARObjects uses scene.traverse
+        // which works on XR8's scene too
+        { traverse: (fn) => { /* objects are in XR8 scene, animation handled in updateAvatar */ } },
+        time
+      );
+    },
+  });
 }
 
 // Wire buttons

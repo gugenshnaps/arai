@@ -403,6 +403,42 @@ html, body {
   #talk-icon { font-size: 1.9rem; }
 }
 
+/* ===== 8th Wall SLAM canvas ===== */
+#xr-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* ===== XR8 ENTER AR button ===== */
+#xr8-btn {
+  padding: 10px 22px;
+  margin-bottom: 4px;
+  background: rgba(0, 245, 255, 0.12);
+  border: 1px solid var(--neon-cyan);
+  border-radius: var(--radius-full);
+  color: var(--neon-cyan);
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 0 12px rgba(0, 245, 255, 0.25);
+  transition: box-shadow var(--transition-fast), background var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+}
+
+#xr8-btn:hover {
+  background: rgba(0, 245, 255, 0.22);
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.45);
+}
+
 /* ===== AR Enter Button (Three.js ARButton override) ===== */
 #ar-enter-btn {
   /* Reset Three.js inline styles */

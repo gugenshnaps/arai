@@ -8,16 +8,24 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>AR AI</title>
     <link rel="stylesheet" href="/style.css" />
+    <!-- 8th Wall Engine Binary — free SLAM/surface detection for any browser -->
+    <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js"
+      async crossorigin="anonymous"
+      data-preload-chunks="slam">
+    </script>
   </head>
   <body>
     <!-- Single fixed wrapper — prevents long-page bug in Telegram WebView -->
     <div id="app">
 
-      <!-- Camera background -->
+      <!-- Camera background (normal mode) -->
       <video id="camera" autoplay playsinline muted></video>
 
-      <!-- Three.js canvas overlay -->
+      <!-- Three.js canvas overlay (normal mode) -->
       <canvas id="three-canvas"></canvas>
+
+      <!-- 8th Wall SLAM canvas (hidden until user enters AR mode) -->
+      <canvas id="xr-canvas" style="display:none"></canvas>
 
       <!-- UI Layer -->
       <div id="ui">

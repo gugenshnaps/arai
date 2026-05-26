@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>AR AI</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <!-- Camera background -->
+    <video id="camera" autoplay playsinline muted></video>
+
+    <!-- Three.js canvas overlay -->
+    <canvas id="three-canvas"></canvas>
+
+    <!-- UI Layer -->
+    <div id="ui">
+      <!-- Top header -->
+      <div id="header">
+        <div id="logo">AR <span>AI</span></div>
+        <div id="status-dot"></div>
+      </div>
+
+      <!-- Status message -->
+      <div id="status-bar">
+        <span id="status-text">Инициализация...</span>
+      </div>
+
+      <!-- Transcript display -->
+      <div id="transcript-box">
+        <div id="user-text"></div>
+        <div id="ai-text"></div>
+      </div>
+
+      <!-- Controls -->
+      <div id="controls">
+        <button id="talk-btn" aria-label="Говорить с AI" disabled>
+          <span id="talk-icon">🎤</span>
+          <span id="talk-label">TALK</span>
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

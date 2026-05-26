@@ -1,0 +1,337 @@
+/* ===== CSS Variables: Cyberpunk / Hologram palette ===== */
+:root {
+  --neon-cyan:    #00f5ff;
+  --neon-purple:  #bf00ff;
+  --neon-glow:    rgba(0, 245, 255, 0.35);
+  --glass-bg:     rgba(0, 0, 0, 0.45);
+  --glass-border: rgba(0, 245, 255, 0.25);
+  --text-primary: #e8f4f8;
+  --text-dim:     rgba(232, 244, 248, 0.55);
+  --danger:       #ff4466;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-full: 999px;
+
+  --transition-fast: 150ms ease;
+  --transition-med:  300ms ease;
+}
+
+/* ===== Reset ===== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== Camera feed (fullscreen background) ===== */
+#camera {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* ===== Three.js canvas (overlay) ===== */
+#three-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ===== UI layer ===== */
+#ui {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px);
+  pointer-events: none;
+}
+
+/* ===== Header ===== */
+#header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+#logo {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+#logo span {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px var(--neon-cyan);
+}
+
+#status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: background var(--transition-med), box-shadow var(--transition-med);
+}
+
+#status-dot.active {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 8px var(--neon-cyan), 0 0 16px var(--neon-cyan);
+}
+
+#status-dot.listening {
+  background: var(--neon-purple);
+  box-shadow: 0 0 8px var(--neon-purple), 0 0 16px var(--neon-purple);
+}
+
+#status-dot.thinking {
+  background: #ffaa00;
+  box-shadow: 0 0 8px #ffaa00, 0 0 16px #ffaa00;
+}
+
+/* ===== Status bar (middle) ===== */
+#status-bar {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  padding: 6px 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+#status-text {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+}
+
+/* ===== Transcript box ===== */
+#transcript-box {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+#user-text, #ai-text {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: none;
+}
+
+#user-text {
+  background: rgba(191, 0, 255, 0.2);
+  border: 1px solid rgba(191, 0, 255, 0.4);
+  align-self: flex-end;
+  max-width: 85%;
+}
+
+#ai-text {
+  background: rgba(0, 245, 255, 0.12);
+  border: 1px solid var(--glass-border);
+  align-self: flex-start;
+  max-width: 85%;
+}
+
+#user-text.visible, #ai-text.visible {
+  display: block;
+}
+
+/* ===== Controls ===== */
+#controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  pointer-events: auto;
+  width: 100%;
+}
+
+/* ===== Talk button ===== */
+#talk-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast),
+    background var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+#talk-btn:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 3px;
+}
+
+#talk-btn:not(:disabled):hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 18px var(--neon-glow);
+}
+
+#talk-btn:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+#talk-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#talk-btn.listening {
+  border-color: var(--neon-purple);
+  background: rgba(191, 0, 255, 0.2);
+  box-shadow: 0 0 24px rgba(191, 0, 255, 0.5), 0 0 48px rgba(191, 0, 255, 0.2);
+  animation: pulse-ring 1.2s ease-in-out infinite;
+}
+
+#talk-btn.thinking {
+  border-color: #ffaa00;
+  background: rgba(255, 170, 0, 0.15);
+  box-shadow: 0 0 24px rgba(255, 170, 0, 0.4);
+  cursor: not-allowed;
+}
+
+#talk-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+#talk-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+}
+
+/* ===== Scanning line effect on canvas ===== */
+#three-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 245, 255, 0.015) 2px,
+    rgba(0, 245, 255, 0.015) 4px
+  );
+  pointer-events: none;
+}
+
+/* ===== Animations ===== */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pulse-ring {
+    0%, 100% { box-shadow: 0 0 24px rgba(191, 0, 255, 0.5), 0 0 48px rgba(191, 0, 255, 0.2); }
+    50%       { box-shadow: 0 0 36px rgba(191, 0, 255, 0.8), 0 0 72px rgba(191, 0, 255, 0.35); }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  #user-text.visible, #ai-text.visible {
+    animation: fade-in 250ms ease forwards;
+  }
+}
+
+/* ===== Error state ===== */
+#status-text.error {
+  color: var(--danger);
+}
+
+/* ===== Avatar loading placeholder ===== */
+#avatar-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 500ms ease;
+}
+
+#avatar-loader.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loader-ring {
+  width: 56px;
+  height: 56px;
+  border: 3px solid rgba(0, 245, 255, 0.15);
+  border-top-color: var(--neon-cyan);
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .loader-ring {
+    animation: spin 900ms linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+}
+
+/* ===== Responsive: larger screens ===== */
+@media (min-width: 600px) {
+  #talk-btn {
+    width: 90px;
+    height: 90px;
+  }
+  #talk-icon { font-size: 1.9rem; }
+}

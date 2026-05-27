@@ -1,32 +1,33 @@
-import * as THREE from 'three';
-import { loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } from './avatar.js';
-import { askAI } from './ai.js';
-import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
-import { isARSupported, initAR, updateAR, animateARObjects } from './ar.js';
-import { loadXR8, startXR8 } from './xr8.js';
+// Lightweight bootstrap — NO heavy static imports.
+// Three.js (~750 KB) loads dynamically so status updates immediately on slow mobile.
 
-// ── DOM refs ──────────────────────────────────────────────────────────────
-// (Global error/rejection handlers live in index.html so they catch
-//  import failures that happen before this module body executes)
-const video         = document.getElementById('camera');
-const canvas        = document.getElementById('three-canvas');
-const talkBtn       = document.getElementById('talk-btn');
-const talkIcon      = document.getElementById('talk-icon');
-const talkLabel     = document.getElementById('talk-label');
-const statusText    = document.getElementById('status-text');
-const statusDot     = document.getElementById('status-dot');
-const userText      = document.getElementById('user-text');
-const aiText        = document.getElementById('ai-text');
-const textInputRow  = document.getElementById('text-input-row');
-const textInput     = document.getElementById('text-input');
-const sendBtn       = document.getElementById('send-btn');
+const video        = document.getElementById('camera');
+const canvas       = document.getElementById('three-canvas');
+const talkBtn      = document.getElementById('talk-btn');
+const talkIcon     = document.getElementById('talk-icon');
+const talkLabel    = document.getElementById('talk-label');
+const statusText   = document.getElementById('status-text');
+const statusDot    = document.getElementById('status-dot');
+const userText     = document.getElementById('user-text');
+const aiText       = document.getElementById('ai-text');
+const textInputRow = document.getElementById('text-input-row');
+const textInput    = document.getElementById('text-input');
+const sendBtn      = document.getElementById('send-btn');
 
-// ── State ─────────────────────────────────────────────────────────────────
-let appState = 'loading'; // loading | ready | listening | thinking | speaking
+statusText.textContent = 'Загрузка...';
+
+let appState = 'loading';
 let cameraStarted = false;
-let xr8Mode = false; // true when running inside 8th Wall SLAM
+let xr8Mode = false;
 
-// ── Status helpers ────────────────────────────────────────────────────────
+// Populated after dynamic imports resolve
+let THREE = null;
+let loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld;
+let askAI;
+let startListening, speak, isSpeechRecognitionSupported;
+let isARSupported, initAR, updateAR, animateARObjects;
+let loadXR8, startXR8;
+
 const STATUS_MESSAGES = {
   loading:   'Загрузка...',
   ready:     'Готов — нажми TALK',
@@ -78,7 +79,6 @@ function hideTranscript() {
   aiText.classList.remove('visible');
 }
 
-// ── Camera setup (non-blocking) ───────────────────────────────────────────
 async function startCamera() {
   if (cameraStarted) return;
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -95,8 +95,6 @@ async function startCamera() {
       audio: false,
     });
     video.srcObject = stream;
-    // Don't await play() — it can hang on iOS Safari due to autoplay policy.
-    // The video element has autoplay+playsinline+muted so it will start automatically.
     video.play().catch((err) => console.warn('video.play() warning:', err));
     cameraStarted = true;
   } catch (err) {
@@ -104,7 +102,6 @@ async function startCamera() {
   }
 }
 
-// ── Three.js scene ────────────────────────────────────────────────────────
 function buildScene() {
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -115,7 +112,6 @@ function buildScene() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  // xr.enabled is set inside initAR() only when WebXR is actually supported
 
   const scene = new THREE.Scene();
 
@@ -128,8 +124,7 @@ function buildScene() {
   camera.position.set(0, 1.35, 3.5);
   camera.lookAt(0, 1.0, 0);
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-  scene.add(ambient);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
   const rimLight = new THREE.DirectionalLight(0x00f5ff, 1.8);
   rimLight.position.set(2, 3, -2);
@@ -148,7 +143,6 @@ function buildScene() {
   return { renderer, scene, camera };
 }
 
-// ── Shared AI response flow ───────────────────────────────────────────────
 async function handleAIResponse(transcript) {
   showTranscript(transcript, null);
 
@@ -168,7 +162,6 @@ async function handleAIResponse(transcript) {
   setState('ready');
 }
 
-// ── Talk button (voice) ───────────────────────────────────────────────────
 async function handleTalk() {
   if (appState !== 'ready') return;
 
@@ -181,12 +174,10 @@ async function handleTalk() {
     transcript = await startListening();
   } catch (err) {
     const msg = err.message || '';
-    if (msg.includes('service-not-allowed')) {
-      // Browser / WebView permanently blocks SpeechRecognition → text input
+    if (msg.includes('service-not-allowed') || msg.includes('не поддерживается')) {
       showTextInput();
       setState('ready');
     } else if (msg.includes('not-allowed')) {
-      // User denied mic permission → guide them to fix it
       showError('Разреши микрофон: Настройки → Safari → Микрофон');
     } else {
       showError(msg || 'Ошибка распознавания');
@@ -198,7 +189,6 @@ async function handleTalk() {
   await handleAIResponse(transcript);
 }
 
-// ── Text input fallback ───────────────────────────────────────────────────
 function showTextInput() {
   talkBtn.style.display = 'none';
   textInputRow.style.display = 'flex';
@@ -215,9 +205,6 @@ async function handleTextSend() {
   await handleAIResponse(text);
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────
-
-// Loading overlay
 const loaderEl = document.createElement('div');
 loaderEl.id = 'avatar-loader';
 loaderEl.innerHTML = '<div class="loader-ring"></div>';
@@ -228,8 +215,25 @@ function hideLoader() {
   setTimeout(() => loaderEl.remove(), 600);
 }
 
+async function loadModules() {
+  statusText.textContent = 'Загрузка 3D...';
+
+  const [threeMod, avatarMod, aiMod, voiceMod] = await Promise.all([
+    import('three'),
+    import('./avatar.js'),
+    import('./ai.js'),
+    import('./voice.js'),
+  ]);
+
+  THREE = threeMod;
+  ({ loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } = avatarMod);
+  ({ askAI } = aiMod);
+  ({ startListening, speak, isSpeechRecognitionSupported } = voiceMod);
+}
+
 async function init() {
-  // 1. Build Three.js scene FIRST so UI feels alive
+  await loadModules();
+
   let scene, camera, renderer;
   try {
     ({ renderer, scene, camera } = buildScene());
@@ -240,20 +244,18 @@ async function init() {
     return;
   }
 
-  // 2. Set UI to ready state — user can press TALK even before avatar loads
+  // Telegram WebView has no SpeechRecognition — show text input immediately
   if (!isSpeechRecognitionSupported()) {
-    statusText.textContent = 'Открой в Safari или Chrome';
-    statusText.classList.add('error');
+    showTextInput();
+    setState('ready');
     hideLoader();
   } else {
     setState('ready');
     hideLoader();
   }
 
-  // 3. Start camera in background — never blocks anything
   startCamera();
 
-  // 4. Load avatar in background with timeout
   loadAvatar(scene, {
     onProgress: (val) => {
       if (appState === 'ready' && !userText.classList.contains('visible')) {
@@ -267,8 +269,9 @@ async function init() {
     console.error('Avatar failed to load:', err);
   });
 
-  // 5a. Check WebXR AR support (Android Chrome / Vision Pro)
+  // WebXR AR — lazy load ar.js only when checking support
   try {
+    ({ isARSupported, initAR, updateAR, animateARObjects } = await import('./ar.js'));
     const arSupported = await isARSupported();
     if (arSupported) {
       const arBtn = initAR(renderer, scene);
@@ -278,8 +281,6 @@ async function init() {
     console.warn('WebXR AR setup failed:', err);
   }
 
-  // 5b. Show "ENTER AR" button immediately on touch devices.
-  //     XR8 engine (~10 MB) loads lazily only when the user taps the button.
   if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
     const btn = document.createElement('button');
     btn.id = 'xr8-btn';
@@ -288,26 +289,24 @@ async function init() {
     document.getElementById('controls').prepend(btn);
   }
 
-  // 6. Render loop — setAnimationLoop works both in normal and XR mode
-  //    frame is non-null only during an active WebXR AR session
   function animate(time, frame) {
-    updateAR(frame, renderer);
-    animateARObjects(scene, time);
+    updateAR?.(frame, renderer);
+    animateARObjects?.(scene, time);
     updateAvatar(time);
     renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(animate);
 }
 
-// ── XR8 SLAM AR mode ──────────────────────────────────────────────────────────
-
 async function enterXR8Mode() {
   const xr8Btn = document.getElementById('xr8-btn');
   if (xr8Btn) { xr8Btn.disabled = true; xr8Btn.textContent = '⏳ Загрузка AR...'; }
 
-  // Load the 8th Wall engine binary on demand (~10 MB, first time only)
   try {
     statusText.textContent = 'Загрузка AR движка...';
+    if (!loadXR8) {
+      ({ loadXR8, startXR8 } = await import('./xr8.js'));
+    }
     await loadXR8();
   } catch (err) {
     console.error('XR8 load failed:', err);
@@ -318,13 +317,11 @@ async function enterXR8Mode() {
 
   xr8Mode = true;
 
-  // Swap visuals: hide camera feed + old canvas, show xr8 canvas
   const xrCanvas = document.getElementById('xr-canvas');
   document.getElementById('camera').style.display = 'none';
   document.getElementById('three-canvas').style.display = 'none';
   xrCanvas.style.display = 'block';
 
-  // Hide WebXR button if present (not needed in XR8 mode)
   const webxrBtn = document.getElementById('ar-enter-btn');
   if (webxrBtn) webxrBtn.style.display = 'none';
   if (xr8Btn) xr8Btn.style.display = 'none';
@@ -334,7 +331,6 @@ async function enterXR8Mode() {
 
   startXR8(xrCanvas, {
     onSceneReady: (scene) => {
-      // Load avatar into XR8's Three.js scene
       loadAvatar(scene, {
         onProgress: (val) => {
           if (appState !== 'listening' && appState !== 'thinking') {
@@ -360,24 +356,20 @@ async function enterXR8Mode() {
 
     onFrame: (time) => {
       updateAvatar(time);
-      animateARObjects(
-        // pass a stub scene — animateARObjects uses scene.traverse
-        // which works on XR8's scene too
-        { traverse: (fn) => { /* objects are in XR8 scene, animation handled in updateAvatar */ } },
+      animateARObjects?.(
+        { traverse: () => {} },
         time
       );
     },
   });
 }
 
-// Wire buttons
 talkBtn.addEventListener('click', handleTalk);
 sendBtn.addEventListener('click', handleTextSend);
 textInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleTextSend();
 });
 
-// Kick off — surface any init errors in the status bar
 init().catch((err) => {
   const msg = err?.message || String(err) || 'Init error';
   statusText.textContent = '⚠ ' + msg.slice(0, 70);

@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
 // VRM avatar — Alicia Solid (VRM0, self-hosted in public/models/)
-const VRM_URL = '/arai/models/AliciaSolid.vrm';
+const VRM_URL = `${import.meta.env.BASE_URL}models/AliciaSolid.vrm`;
 
 let vrm = null;
 let idleTime = 0;

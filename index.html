@@ -8,6 +8,57 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>AR AI</title>
     <link rel="stylesheet" href="/style.css" />
+
+    <!-- Bootstrap: runs before any module — shows progress on slow mobile -->
+    <script>
+      (function() {
+        var INITIAL = 'Инициализация...';
+        function st() { return document.getElementById('status-text'); }
+        function setMsg(msg) {
+          var el = st();
+          if (el) { el.textContent = msg; el.style.color = ''; }
+        }
+        function showErr(msg) {
+          var el = st();
+          if (el) { el.textContent = String(msg).slice(0, 80); el.style.color = '#ff4466'; }
+        }
+
+        // Show loading immediately (before 750 KB Three.js downloads)
+        document.addEventListener('DOMContentLoaded', function() {
+          setMsg('Загрузка...');
+        });
+
+        window.addEventListener('error', function(e) {
+          showErr('\u26a0 ' + (e.message || 'JS error'));
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+          var r = e.reason;
+          showErr('\u26a0 ' + (r && r.message ? r.message : String(r || 'Promise error')));
+        });
+
+        // Progressive hints — NOT a hard failure at 10 s
+        setTimeout(function() {
+          var el = st();
+          if (el && (el.textContent === INITIAL || el.textContent === 'Загрузка...')) {
+            setMsg('Загрузка 3D... (подожди)');
+          }
+        }, 8000);
+
+        setTimeout(function() {
+          var el = st();
+          if (el && el.textContent.indexOf('Загрузка') !== -1) {
+            setMsg('Медленная сеть — ещё загружается...');
+          }
+        }, 20000);
+
+        setTimeout(function() {
+          var el = st();
+          if (el && (el.textContent === INITIAL || el.textContent.indexOf('Загрузка') !== -1 || el.textContent.indexOf('Медленная') !== -1)) {
+            showErr('\u26a0 Не загрузилось — обнови страницу');
+          }
+        }, 45000);
+      })();
+    </script>
   </head>
   <body>
     <!-- Single fixed wrapper — prevents long-page bug in Telegram WebView -->
@@ -57,30 +108,6 @@
       </div>
 
     </div><!-- /#app -->
-
-    <!-- Error trap: must be BEFORE the module script so it catches
-         any import/parse errors that occur before main.js body runs -->
-    <script>
-      function _showErr(msg) {
-        var st = document.getElementById('status-text');
-        if (st) { st.textContent = String(msg).slice(0, 80); st.style.color = '#ff4466'; }
-      }
-      window.addEventListener('error', function(e) {
-        _showErr('\u26a0 ' + (e.message || 'JS error'));
-      });
-      window.addEventListener('unhandledrejection', function(e) {
-        var r = e.reason;
-        _showErr('\u26a0 ' + (r && r.message ? r.message : String(r || 'Promise error')));
-      });
-      // Safety net: if nothing changed status after 10 s, the module never ran
-      setTimeout(function() {
-        var st = document.getElementById('status-text');
-        if (st && st.textContent === 'Инициализация...') {
-          st.textContent = '\u26a0 Обнови страницу (JS не загрузился)';
-          st.style.color = '#ff4466';
-        }
-      }, 10000);
-    </script>
 
     <script type="module" src="/src/main.js"></script>
   </body>

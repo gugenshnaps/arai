@@ -25,6 +25,9 @@
 
         // Show loading immediately (before 750 KB Three.js downloads)
         document.addEventListener('DOMContentLoaded', function() {
+          // Remove stale full-screen loader from cached old builds
+          var oldLoader = document.getElementById('avatar-loader');
+          if (oldLoader) oldLoader.remove();
           setMsg('Загрузка...');
         });
 

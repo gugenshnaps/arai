@@ -206,25 +206,21 @@ async function handleTextSend() {
   await handleAIResponse(text);
 }
 
-const loaderEl = document.createElement('div');
-loaderEl.id = 'avatar-loader';
-loaderEl.innerHTML = '<div class="loader-ring"></div>';
-document.body.appendChild(loaderEl);
-
-function hideLoader() {
-  loaderEl.classList.add('hidden');
-  setTimeout(() => loaderEl.remove(), 600);
-}
-
 async function loadModules() {
   statusText.textContent = 'Загрузка 3D...';
 
-  const [threeMod, avatarMod, aiMod, voiceMod] = await Promise.all([
+  const timeout = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Таймаут — проверь интернет')), 90000);
+  });
+
+  const loads = Promise.all([
     import('three'),
     import('./avatar.js'),
     import('./ai.js'),
     import('./voice.js'),
   ]);
+
+  const [threeMod, avatarMod, aiMod, voiceMod] = await Promise.race([loads, timeout]);
 
   THREE = threeMod;
   ({ loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } = avatarMod);
@@ -241,7 +237,6 @@ async function init() {
     mainRenderer = renderer;
   } catch (err) {
     console.error('WebGL init failed:', err);
-    hideLoader();
     statusText.textContent = 'WebGL не поддерживается';
     return;
   }
@@ -249,14 +244,18 @@ async function init() {
   // Telegram WebView has no SpeechRecognition — show text input immediately
   if (!isSpeechRecognitionSupported()) {
     showTextInput();
-    setState('ready');
-    hideLoader();
-  } else {
-    setState('ready');
-    hideLoader();
   }
+  setState('ready');
 
   startCamera();
+
+  function animate(time, frame) {
+    updateAR?.(frame, renderer);
+    animateARObjects?.(scene, time);
+    updateAvatar(time);
+    renderer.render(scene, camera);
+  }
+  renderer.setAnimationLoop(animate);
 
   loadAvatar(scene, {
     onProgress: (val) => {
@@ -271,17 +270,20 @@ async function init() {
     console.error('Avatar failed to load:', err);
   });
 
-  // WebXR AR — lazy load ar.js only when checking support
-  try {
-    ({ isARSupported, initAR, updateAR, animateARObjects } = await import('./ar.js'));
-    const arSupported = await isARSupported();
-    if (arSupported) {
-      const arBtn = initAR(renderer, scene);
-      document.getElementById('controls').prepend(arBtn);
+  // WebXR AR — load in background, don't block render loop
+  import('./ar.js').then(async (arMod) => {
+    isARSupported = arMod.isARSupported;
+    initAR = arMod.initAR;
+    updateAR = arMod.updateAR;
+    animateARObjects = arMod.animateARObjects;
+    try {
+      if (await isARSupported()) {
+        document.getElementById('controls').prepend(initAR(renderer, scene));
+      }
+    } catch (err) {
+      console.warn('WebXR AR setup failed:', err);
     }
-  } catch (err) {
-    console.warn('WebXR AR setup failed:', err);
-  }
+  }).catch((err) => console.warn('AR module load failed:', err));
 
   if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
     const btn = document.createElement('button');
@@ -290,14 +292,6 @@ async function init() {
     btn.addEventListener('click', enterXR8Mode);
     document.getElementById('controls').prepend(btn);
   }
-
-  function animate(time, frame) {
-    updateAR?.(frame, renderer);
-    animateARObjects?.(scene, time);
-    updateAvatar(time);
-    renderer.render(scene, camera);
-  }
-  renderer.setAnimationLoop(animate);
 }
 
 async function enterXR8Mode() {
@@ -383,5 +377,6 @@ init().catch((err) => {
   const msg = err?.message || String(err) || 'Init error';
   statusText.textContent = '⚠ ' + msg.slice(0, 70);
   statusText.style.color = '#ff4466';
+  talkBtn.disabled = false;
   console.error('init() failed:', err);
 });

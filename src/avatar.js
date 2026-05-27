@@ -2,9 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-// VRM avatar — Alicia Solid via jsDelivr CDN (stable, free, MIT)
-// jsDelivr mirrors the pixiv/three-vrm GitHub repo reliably
-const VRM_URL = 'https://cdn.jsdelivr.net/gh/pixiv/three-vrm/packages/three-vrm/examples/models/VRM1_Alicia_Solid.vrm';
+// VRM avatar — Alicia Solid (VRM0, self-hosted in public/models/)
+const VRM_URL = '/arai/models/AliciaSolid.vrm';
 
 let vrm = null;
 let idleTime = 0;

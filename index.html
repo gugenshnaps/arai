@@ -32,8 +32,10 @@
         });
 
         window.addEventListener('error', function(e) {
-          showErr('\u26a0 ' + (e.message || 'JS error'));
-        });
+          var msg = e.message || 'JS error';
+          if (e.target && e.target.src) msg = 'Файл: ' + e.target.src.split('/').pop();
+          showErr('\u26a0 ' + msg);
+        }, true);
         window.addEventListener('unhandledrejection', function(e) {
           var r = e.reason;
           showErr('\u26a0 ' + (r && r.message ? r.message : String(r || 'Promise error')));

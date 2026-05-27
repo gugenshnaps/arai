@@ -13,8 +13,9 @@ export default defineConfig({
     port: 5173,
   },
   build: {
-    target: 'es2020',
-    chunkSizeWarningLimit: 650, // three.js is large by nature
+    target: 'es2018',
+    modulePreload: { polyfill: true },
+    chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {
         manualChunks(id) {

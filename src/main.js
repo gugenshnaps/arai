@@ -1,5 +1,7 @@
-// Lightweight bootstrap — NO heavy static imports.
-// Three.js (~750 KB) loads dynamically so status updates immediately on slow mobile.
+import * as THREE from 'three';
+import { loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } from './avatar.js';
+import { askAI } from './ai.js';
+import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
 
 const video        = document.getElementById('camera');
 const canvas       = document.getElementById('three-canvas');
@@ -18,16 +20,10 @@ statusText.textContent = 'Загрузка...';
 
 let appState = 'loading';
 let cameraStarted = false;
-let xr8Mode = false;
-
-// Populated after dynamic imports resolve
-let THREE = null;
-let loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld;
-let askAI;
-let startListening, speak, isSpeechRecognitionSupported;
-let isARSupported, initAR, updateAR, animateARObjects;
-let loadXR8, startXR8, fitXRCanvas;
 let mainRenderer = null;
+let updateAR = null;
+let animateARObjects = null;
+let loadXR8, startXR8, fitXRCanvas;
 
 const STATUS_MESSAGES = {
   loading:   'Загрузка...',
@@ -82,21 +78,14 @@ function hideTranscript() {
 
 async function startCamera() {
   if (cameraStarted) return;
-  if (!navigator.mediaDevices?.getUserMedia) {
-    console.warn('getUserMedia not available');
-    return;
-  }
+  if (!navigator.mediaDevices?.getUserMedia) return;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width:  { ideal: 1280 },
-        height: { ideal: 720 },
-      },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false,
     });
     video.srcObject = stream;
-    video.play().catch((err) => console.warn('video.play() warning:', err));
+    video.play().catch(() => {});
     cameraStarted = true;
   } catch (err) {
     console.warn('Camera unavailable:', err);
@@ -105,35 +94,24 @@ async function startCamera() {
 
 function buildScene() {
   const renderer = new THREE.WebGLRenderer({
-    canvas,
-    alpha: true,
-    antialias: true,
-    powerPreference: 'high-performance',
+    canvas, alpha: true, antialias: true, powerPreference: 'high-performance',
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-
-  const camera = new THREE.PerspectiveCamera(
-    35,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    100
-  );
+  const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
   camera.position.set(0, 1.35, 3.5);
   camera.lookAt(0, 1.0, 0);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-
-  const rimLight = new THREE.DirectionalLight(0x00f5ff, 1.8);
-  rimLight.position.set(2, 3, -2);
-  scene.add(rimLight);
-
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.7);
-  fillLight.position.set(-1, 2, 3);
-  scene.add(fillLight);
+  const rim = new THREE.DirectionalLight(0x00f5ff, 1.8);
+  rim.position.set(2, 3, -2);
+  scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.7);
+  fill.position.set(-1, 2, 3);
+  scene.add(fill);
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -146,7 +124,6 @@ function buildScene() {
 
 async function handleAIResponse(transcript) {
   showTranscript(transcript, null);
-
   setState('thinking');
   let reply;
   try {
@@ -155,7 +132,6 @@ async function handleAIResponse(transcript) {
     showError(err.message);
     return;
   }
-
   showTranscript(null, reply);
   setState('speaking');
   playExpression('happy', 0.7, 1500);
@@ -165,10 +141,8 @@ async function handleAIResponse(transcript) {
 
 async function handleTalk() {
   if (appState !== 'ready') return;
-
   if (!cameraStarted) startCamera();
   hideTranscript();
-
   setState('listening');
   let transcript;
   try {
@@ -185,7 +159,6 @@ async function handleTalk() {
     }
     return;
   }
-
   if (!transcript) { showError('Ничего не услышал.'); return; }
   await handleAIResponse(transcript);
 }
@@ -206,56 +179,26 @@ async function handleTextSend() {
   await handleAIResponse(text);
 }
 
-async function loadModules() {
-  statusText.textContent = 'Загрузка 3D...';
-
-  const timeout = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Таймаут — проверь интернет')), 90000);
-  });
-
-  const loads = Promise.all([
-    import('three'),
-    import('./avatar.js'),
-    import('./ai.js'),
-    import('./voice.js'),
-  ]);
-
-  const [threeMod, avatarMod, aiMod, voiceMod] = await Promise.race([loads, timeout]);
-
-  THREE = threeMod;
-  ({ loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } = avatarMod);
-  ({ askAI } = aiMod);
-  ({ startListening, speak, isSpeechRecognitionSupported } = voiceMod);
-}
-
 async function init() {
-  await loadModules();
-
   let scene, camera, renderer;
   try {
     ({ renderer, scene, camera } = buildScene());
     mainRenderer = renderer;
   } catch (err) {
-    console.error('WebGL init failed:', err);
     statusText.textContent = 'WebGL не поддерживается';
     return;
   }
 
-  // Telegram WebView has no SpeechRecognition — show text input immediately
-  if (!isSpeechRecognitionSupported()) {
-    showTextInput();
-  }
+  if (!isSpeechRecognitionSupported()) showTextInput();
   setState('ready');
-
   startCamera();
 
-  function animate(time, frame) {
+  renderer.setAnimationLoop((time, frame) => {
     updateAR?.(frame, renderer);
     animateARObjects?.(scene, time);
     updateAvatar(time);
     renderer.render(scene, camera);
-  }
-  renderer.setAnimationLoop(animate);
+  });
 
   loadAvatar(scene, {
     onProgress: (val) => {
@@ -263,27 +206,18 @@ async function init() {
         statusText.textContent = `Аватар ${val}`;
       }
     },
-    onLoaded: () => {
-      if (appState === 'ready') setState('ready');
-    },
-  }).catch((err) => {
-    console.error('Avatar failed to load:', err);
-  });
+    onLoaded: () => { if (appState === 'ready') setState('ready'); },
+  }).catch((err) => console.error('Avatar failed:', err));
 
-  // WebXR AR — load in background, don't block render loop
-  import('./ar.js').then(async (arMod) => {
-    isARSupported = arMod.isARSupported;
-    initAR = arMod.initAR;
-    updateAR = arMod.updateAR;
-    animateARObjects = arMod.animateARObjects;
+  import('./ar.js').then(async (ar) => {
+    updateAR = ar.updateAR;
+    animateARObjects = ar.animateARObjects;
     try {
-      if (await isARSupported()) {
-        document.getElementById('controls').prepend(initAR(renderer, scene));
+      if (await ar.isARSupported()) {
+        document.getElementById('controls').prepend(ar.initAR(renderer, scene));
       }
-    } catch (err) {
-      console.warn('WebXR AR setup failed:', err);
-    }
-  }).catch((err) => console.warn('AR module load failed:', err));
+    } catch (e) { console.warn('WebXR:', e); }
+  }).catch((e) => console.warn('AR module:', e));
 
   if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
     const btn = document.createElement('button');
@@ -300,22 +234,15 @@ async function enterXR8Mode() {
 
   try {
     statusText.textContent = 'Загрузка AR движка...';
-    if (!loadXR8) {
-      ({ loadXR8, startXR8, fitXRCanvas } = await import('./xr8.js'));
-    }
+    if (!loadXR8) ({ loadXR8, startXR8, fitXRCanvas } = await import('./xr8.js'));
     await loadXR8();
   } catch (err) {
-    console.error('XR8 load failed:', err);
-    showError('AR движок недоступен. Попробуй позже.');
+    showError('AR движок недоступен');
     if (xr8Btn) { xr8Btn.disabled = false; xr8Btn.textContent = '🌍 ENTER AR'; }
     return;
   }
 
-  xr8Mode = true;
-
-  // Stop the normal Three.js loop — XR8 manages its own render pipeline
   if (mainRenderer) mainRenderer.setAnimationLoop(null);
-
   document.body.classList.add('ar-mode');
 
   const xrCanvas = document.getElementById('xr-canvas');
@@ -323,13 +250,11 @@ async function enterXR8Mode() {
   document.getElementById('three-canvas').style.display = 'none';
   xrCanvas.style.display = 'block';
 
-  const webxrBtn = document.getElementById('ar-enter-btn');
-  if (webxrBtn) webxrBtn.style.display = 'none';
+  document.getElementById('ar-enter-btn')?.style.setProperty('display', 'none');
   if (xr8Btn) xr8Btn.style.display = 'none';
 
   statusText.textContent = 'Наводи камеру на пол...';
   statusText.classList.remove('error');
-
   fitXRCanvas(xrCanvas);
 
   startXR8(xrCanvas, {
@@ -341,42 +266,29 @@ async function enterXR8Mode() {
           }
         },
         onLoaded: () => setState('ready'),
-      }).catch((err) => console.error('Avatar load error in XR8:', err));
+      }).catch((e) => console.error('Avatar XR8:', e));
     },
-
     onSurfaceFound: () => {
-      if (appState === 'loading' || statusText.textContent.includes('Наводи')) {
+      if (statusText.textContent.includes('Наводи')) {
         statusText.textContent = 'Тапни чтобы поставить персонажа';
       }
     },
-
-    onAvatarPlace: (position) => {
-      placeAvatarAtWorld(position);
-      if (appState === 'ready') {
-        statusText.textContent = 'Готов — нажми TALK';
-      }
+    onAvatarPlace: (pos) => {
+      placeAvatarAtWorld(pos);
+      if (appState === 'ready') statusText.textContent = 'Готов — нажми TALK';
     },
-
     onFrame: (time) => {
       updateAvatar(time);
-      animateARObjects?.(
-        { traverse: () => {} },
-        time
-      );
+      animateARObjects?.({ traverse: () => {} }, time);
     },
   });
 }
 
 talkBtn.addEventListener('click', handleTalk);
 sendBtn.addEventListener('click', handleTextSend);
-textInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') handleTextSend();
-});
+textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleTextSend(); });
 
 init().catch((err) => {
-  const msg = err?.message || String(err) || 'Init error';
-  statusText.textContent = '⚠ ' + msg.slice(0, 70);
+  statusText.textContent = '⚠ ' + (err?.message || String(err)).slice(0, 70);
   statusText.style.color = '#ff4466';
-  talkBtn.disabled = false;
-  console.error('init() failed:', err);
 });

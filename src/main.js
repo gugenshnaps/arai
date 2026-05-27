@@ -5,24 +5,9 @@ import { startListening, speak, isSpeechRecognitionSupported } from './voice.js'
 import { isARSupported, initAR, updateAR, animateARObjects } from './ar.js';
 import { loadXR8, startXR8 } from './xr8.js';
 
-// ── Global error trap — shows any uncaught JS error on screen ─────────────────
-window.addEventListener('error', (e) => {
-  const st = document.getElementById('status-text');
-  if (st) {
-    st.textContent = '⚠ ' + (e.message || 'JS error').slice(0, 60);
-    st.style.color = '#ff4466';
-  }
-});
-window.addEventListener('unhandledrejection', (e) => {
-  const st = document.getElementById('status-text');
-  if (st) {
-    const msg = e.reason?.message || String(e.reason) || 'Promise error';
-    st.textContent = '⚠ ' + msg.slice(0, 60);
-    st.style.color = '#ff4466';
-  }
-});
-
 // ── DOM refs ──────────────────────────────────────────────────────────────
+// (Global error/rejection handlers live in index.html so they catch
+//  import failures that happen before this module body executes)
 const video         = document.getElementById('camera');
 const canvas        = document.getElementById('three-canvas');
 const talkBtn       = document.getElementById('talk-btn');
@@ -130,7 +115,7 @@ function buildScene() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.xr.enabled = true; // needed for WebXR AR mode
+  // xr.enabled is set inside initAR() only when WebXR is actually supported
 
   const scene = new THREE.Scene();
 
@@ -392,5 +377,10 @@ textInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleTextSend();
 });
 
-// Kick off
-init();
+// Kick off — surface any init errors in the status bar
+init().catch((err) => {
+  const msg = err?.message || String(err) || 'Init error';
+  statusText.textContent = '⚠ ' + msg.slice(0, 70);
+  statusText.style.color = '#ff4466';
+  console.error('init() failed:', err);
+});

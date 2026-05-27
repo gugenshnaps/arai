@@ -79,6 +79,10 @@ export function onXR8Ready(callback) {
  * }} callbacks
  */
 export function startXR8(canvas, { onSceneReady, onSurfaceFound, onFrame, onAvatarPlace }) {
+  // XR8.Threejs.pipelineModule() requires window.THREE to be set globally.
+  // We bundle Three.js via Vite, so expose it here right before XR8 uses it.
+  window.THREE = THREE;
+
   XR8.addCameraPipelineModules([
     XR8.GlTextureRenderer.pipelineModule(),  // Draws the live camera feed
     XR8.Threejs.pipelineModule(),            // Creates Three.js scene inside XR8

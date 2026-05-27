@@ -2,17 +2,28 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-// VRM avatar — Alicia Solid (VRM0, self-hosted in public/models/)
 const VRM_URL = `${import.meta.env.BASE_URL}models/AliciaSolid.vrm`;
 
 let vrm = null;
 let idleTime = 0;
 let lastTimestamp = 0;
+let baseY = 0;
+let arPlaced = false;
 
 /**
- * Load and add VRM avatar to the scene.
+ * @param {'overlay'|'ar'} mode
+ * overlay = camera background mode (big, centered on screen)
+ * ar = world mode (hidden until user taps floor)
  */
-export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) {
+export async function loadAvatar(scene, { onProgress, onLoaded, onError, mode = 'overlay' } = {}) {
+  if (vrm) {
+    if (vrm.scene.parent) vrm.scene.parent.remove(vrm.scene);
+    scene.add(vrm.scene);
+    mode === 'ar' ? _prepareForAR() : _positionOverlay();
+    onLoaded?.();
+    return vrm;
+  }
+
   const loader = new GLTFLoader();
   loader.register((parser) => new VRMLoaderPlugin(parser));
 
@@ -21,26 +32,19 @@ export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) 
       VRM_URL,
       (gltf) => {
         vrm = gltf.userData.vrm;
-
         VRMUtils.removeUnnecessaryVertices(gltf.scene);
         VRMUtils.combineSkeletons(gltf.scene);
-
-        // rotateVRM0 only affects VRM 0.x models — safe to call for both versions
         VRMUtils.rotateVRM0(vrm);
-
         scene.add(vrm.scene);
-        _positionAvatar();
-
+        mode === 'ar' ? _prepareForAR() : _positionOverlay();
         onLoaded?.();
         resolve(vrm);
       },
       (progress) => {
         if (progress.lengthComputable) {
-          const pct = Math.round((progress.loaded / progress.total) * 100);
-          onProgress?.(`${pct}%`);
+          onProgress?.(`${Math.round((progress.loaded / progress.total) * 100)}%`);
         } else {
-          const kb = Math.round(progress.loaded / 1024);
-          onProgress?.(`${kb} KB`);
+          onProgress?.(`${Math.round(progress.loaded / 1024)} KB`);
         }
       },
       (error) => {
@@ -52,70 +56,63 @@ export async function loadAvatar(scene, { onProgress, onLoaded, onError } = {}) 
   });
 }
 
-/** Scale and center the avatar in the viewport */
-function _positionAvatar() {
+/** Normal mode: avatar centered over camera feed */
+function _positionOverlay() {
   if (!vrm) return;
+  arPlaced = false;
+  vrm.scene.visible = true;
+  vrm.scene.rotation.set(0, 0, 0);
 
-  // Measure bounding box
   const box = new THREE.Box3().setFromObject(vrm.scene);
   const size = new THREE.Vector3();
   const center = new THREE.Vector3();
   box.getSize(size);
   box.getCenter(center);
 
-  // Target: avatar fills ~60% of viewport height
-  // Camera is at z=3.5 with FOV=35, so visible height at z=0 ≈ 2*tan(17.5°)*3.5 ≈ 2.2 units
   const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(17.5)) * 3.5;
-  const targetHeight = visibleHeight * 0.65;
-  const scale = targetHeight / size.y;
-
+  const scale = (visibleHeight * 0.55) / size.y;
   vrm.scene.scale.setScalar(scale);
 
-  // Center horizontally, position vertically so feet are near bottom quarter
-  vrm.scene.position.set(
-    -center.x * scale,
-    -center.y * scale - visibleHeight * 0.18,
-    0
-  );
+  baseY = -center.y * scale - visibleHeight * 0.12;
+  vrm.scene.position.set(-center.x * scale, baseY, 0);
 }
 
-/**
- * Called every animation frame — drives idle float, head sway, blinking.
- * @param {number} timestamp — from requestAnimationFrame
- */
-export function updateAvatar(timestamp) {
+/** AR mode: hide avatar until user taps the blue ring */
+function _prepareForAR() {
   if (!vrm) return;
+  arPlaced = false;
+  vrm.scene.visible = false;
+  vrm.scene.scale.setScalar(1);
+  vrm.scene.position.set(0, -10, 0);
+  vrm.scene.rotation.set(0, 0, 0);
+  baseY = 0;
+}
 
-  // Universal delta calculation — no THREE.Timer dependency
+export function updateAvatar(timestamp) {
+  if (!vrm || !vrm.scene.visible) return;
+
   const delta = lastTimestamp ? Math.min((timestamp - lastTimestamp) / 1000, 0.1) : 0;
   lastTimestamp = timestamp;
   idleTime += delta;
 
-  // Gentle floating
-  vrm.scene.position.y += Math.sin(idleTime * 1.1) * 0.0002;
+  // Gentle bob — absolute position, NOT += (old code caused drift/jitter)
+  vrm.scene.position.y = baseY + Math.sin(idleTime * 1.2) * 0.012;
 
   if (vrm.humanoid) {
-    // Slow head look-around
     const head = vrm.humanoid.getNormalizedBoneNode('head');
     if (head) {
-      head.rotation.y = Math.sin(idleTime * 0.35) * 0.1;
-      head.rotation.x = Math.sin(idleTime * 0.28) * 0.04;
+      head.rotation.y = Math.sin(idleTime * 0.35) * 0.12;
+      head.rotation.x = Math.sin(idleTime * 0.28) * 0.05;
     }
-
-    // Subtle spine sway
     const spine = vrm.humanoid.getNormalizedBoneNode('spine');
-    if (spine) {
-      spine.rotation.z = Math.sin(idleTime * 0.5) * 0.02;
-    }
+    if (spine) spine.rotation.z = Math.sin(idleTime * 0.5) * 0.02;
   }
 
-  // Blink every ~4 seconds
   if (vrm.expressionManager) {
     const blinkCycle = idleTime % 4;
     if (blinkCycle > 3.85) {
       const t = (blinkCycle - 3.85) / 0.15;
-      const blink = t < 0.5 ? t * 2 : (1 - t) * 2;
-      vrm.expressionManager.setValue('blink', blink);
+      vrm.expressionManager.setValue('blink', t < 0.5 ? t * 2 : (1 - t) * 2);
     } else {
       vrm.expressionManager.setValue('blink', 0);
     }
@@ -125,7 +122,6 @@ export function updateAvatar(timestamp) {
   vrm.update(delta);
 }
 
-/** Play a named expression (happy, sad, angry, relaxed…) */
 export function playExpression(name, weight = 1, duration = 800) {
   if (!vrm?.expressionManager) return;
   vrm.expressionManager.setValue(name, weight);
@@ -140,18 +136,26 @@ export function isAvatarLoaded() {
   return vrm !== null;
 }
 
-/**
- * Place the avatar at an absolute world position (used in XR8 SLAM mode).
- * The avatar stands upright at the given floor position.
- * @param {THREE.Vector3} worldPos - position returned by XR8 hit test
- */
+/** Place avatar on detected floor (AR mode) */
 export function placeAvatarAtWorld(worldPos) {
   if (!vrm) return;
+
+  // Real-world scale: ~1.6 m tall
+  vrm.scene.scale.setScalar(1.0);
+  vrm.scene.rotation.set(0, 0, 0);
+
   const box = new THREE.Box3().setFromObject(vrm.scene);
-  const height = box.max.y - box.min.y;
-  vrm.scene.position.set(worldPos.x, worldPos.y, worldPos.z);
-  // Correct for the fact that avatar origin may not be at feet
-  vrm.scene.position.y -= box.min.y * vrm.scene.scale.y;
-  vrm.scene.scale.setScalar(0.8); // reasonable real-world scale ~1.5m tall
-  vrm.scene.rotation.y = 0;
+  vrm.scene.position.set(
+    worldPos.x,
+    worldPos.y - box.min.y,
+    worldPos.z
+  );
+
+  baseY = vrm.scene.position.y;
+  arPlaced = true;
+  vrm.scene.visible = true;
+}
+
+export function isAvatarPlacedInAR() {
+  return arPlaced;
 }

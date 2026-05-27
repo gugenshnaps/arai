@@ -263,22 +263,26 @@ async function enterXR8Mode() {
   startXR8(xrCanvas, {
     onSceneReady: (scene) => {
       loadAvatar(scene, {
+        mode: 'ar',
         onProgress: (val) => {
           if (appState !== 'listening' && appState !== 'thinking') {
             statusText.textContent = `Загрузка аватара ${val}`;
           }
         },
-        onLoaded: () => setState('ready'),
+        onLoaded: () => {
+          statusText.textContent = 'Наводи на пол — жди кольцо';
+        },
       }).catch((e) => console.error('Avatar XR8:', e));
     },
     onSurfaceFound: () => {
-      if (statusText.textContent.includes('Наводи')) {
-        statusText.textContent = 'Тапни чтобы поставить персонажа';
+      if (statusText.textContent.includes('Наводи') || statusText.textContent.includes('Тапни')) {
+        statusText.textContent = 'Кольцо = пол. Тапни чтобы поставить';
       }
     },
     onAvatarPlace: (pos) => {
       placeAvatarAtWorld(pos);
-      if (appState === 'ready') statusText.textContent = 'Готов — нажми TALK';
+      setState('ready');
+      statusText.textContent = 'Готов — нажми TALK';
     },
     onFrame: (time) => {
       updateAvatar(time);

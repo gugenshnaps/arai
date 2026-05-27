@@ -60,12 +60,12 @@
 
     <script type="module" src="/src/main.js"></script>
 
-    <!-- Safety net: if JS fails to run within 6s, show a hint -->
+    <!-- Safety net: if JS module fails to load within 6s, show a hint -->
     <script>
       setTimeout(function() {
         var st = document.getElementById('status-text');
         if (st && st.textContent === 'Инициализация...') {
-          st.textContent = 'Открой в Chrome или Safari';
+          st.textContent = '⚠ JS не загрузился — обнови страницу';
           st.style.color = '#ff4466';
         }
       }, 6000);

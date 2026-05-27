@@ -3,7 +3,7 @@ import { loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } from './
 import { askAI } from './ai.js';
 import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
 import { isARSupported, initAR, updateAR, animateARObjects } from './ar.js';
-import { isXR8Loaded, onXR8Ready, startXR8 } from './xr8.js';
+import { loadXR8, startXR8 } from './xr8.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 const video         = document.getElementById('camera');
@@ -276,17 +276,15 @@ async function init() {
     console.warn('WebXR AR setup failed:', err);
   }
 
-  // 5b. Check 8th Wall SLAM support (iOS Safari + all browsers)
-  //     XR8 loads asynchronously via <script> tag in index.html
-  onXR8Ready(() => {
-    if (!document.getElementById('xr8-btn')) {
-      const btn = document.createElement('button');
-      btn.id = 'xr8-btn';
-      btn.textContent = '🌍 ENTER AR';
-      btn.addEventListener('click', enterXR8Mode);
-      document.getElementById('controls').prepend(btn);
-    }
-  });
+  // 5b. Show "ENTER AR" button immediately on touch devices.
+  //     XR8 engine (~10 MB) loads lazily only when the user taps the button.
+  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    const btn = document.createElement('button');
+    btn.id = 'xr8-btn';
+    btn.textContent = '🌍 ENTER AR';
+    btn.addEventListener('click', enterXR8Mode);
+    document.getElementById('controls').prepend(btn);
+  }
 
   // 6. Render loop — setAnimationLoop works both in normal and XR mode
   //    frame is non-null only during an active WebXR AR session
@@ -301,7 +299,21 @@ async function init() {
 
 // ── XR8 SLAM AR mode ──────────────────────────────────────────────────────────
 
-function enterXR8Mode() {
+async function enterXR8Mode() {
+  const xr8Btn = document.getElementById('xr8-btn');
+  if (xr8Btn) { xr8Btn.disabled = true; xr8Btn.textContent = '⏳ Загрузка AR...'; }
+
+  // Load the 8th Wall engine binary on demand (~10 MB, first time only)
+  try {
+    statusText.textContent = 'Загрузка AR движка...';
+    await loadXR8();
+  } catch (err) {
+    console.error('XR8 load failed:', err);
+    showError('AR движок недоступен. Попробуй позже.');
+    if (xr8Btn) { xr8Btn.disabled = false; xr8Btn.textContent = '🌍 ENTER AR'; }
+    return;
+  }
+
   xr8Mode = true;
 
   // Swap visuals: hide camera feed + old canvas, show xr8 canvas
@@ -313,9 +325,6 @@ function enterXR8Mode() {
   // Hide WebXR button if present (not needed in XR8 mode)
   const webxrBtn = document.getElementById('ar-enter-btn');
   if (webxrBtn) webxrBtn.style.display = 'none';
-
-  // Hide the XR8 entry button itself
-  const xr8Btn = document.getElementById('xr8-btn');
   if (xr8Btn) xr8Btn.style.display = 'none';
 
   statusText.textContent = 'Наводи камеру на пол...';

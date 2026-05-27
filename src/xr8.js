@@ -16,9 +16,43 @@ let _placed  = false;
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+const XR8_CDN = 'https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js';
+let _loadPromise = null;
+
 /** True if the XR8 engine script has finished loading */
 export function isXR8Loaded() {
   return typeof window.XR8 !== 'undefined';
+}
+
+/**
+ * Lazily load the XR8 engine binary on demand.
+ * Safe to call multiple times — returns the same promise.
+ * @returns {Promise<void>}
+ */
+export function loadXR8() {
+  if (isXR8Loaded()) return Promise.resolve();
+  if (_loadPromise) return _loadPromise;
+
+  _loadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = XR8_CDN;
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.setAttribute('data-preload-chunks', 'slam');
+
+    // XR8 fires 'xrloaded' on window when the engine is ready
+    const onReady = () => { resolve(); };
+    window.addEventListener('xrloaded', onReady, { once: true });
+
+    script.addEventListener('error', (e) => {
+      window.removeEventListener('xrloaded', onReady);
+      reject(new Error('Failed to load XR8 engine from CDN'));
+    });
+
+    document.head.appendChild(script);
+  });
+
+  return _loadPromise;
 }
 
 /**

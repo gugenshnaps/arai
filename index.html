@@ -8,11 +8,25 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>AR AI</title>
     <link rel="stylesheet" href="/style.css" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 
-    <!-- Bootstrap: runs before any module — shows progress on slow mobile -->
+    <!-- Three.js from CDN (~770 KB) — not bundled, loads in parallel, cached globally -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+        "three/": "https://cdn.jsdelivr.net/npm/three@0.184.0/"
+      }
+    }
+    </script>
+    <link rel="modulepreload" crossorigin href="https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js" />
+
+    <!-- Bootstrap: runs before any module -->
     <script>
       (function() {
-        var INITIAL = 'Инициализация...';
+        window.__ARAI_BOOT = false;
+        window.__ARAI_READY = false;
+
         function st() { return document.getElementById('status-text'); }
         function setMsg(msg) {
           var el = st();
@@ -23,45 +37,42 @@
           if (el) { el.textContent = String(msg).slice(0, 80); el.style.color = '#ff4466'; }
         }
 
-        // Show loading immediately (before 750 KB Three.js downloads)
         document.addEventListener('DOMContentLoaded', function() {
-          // Remove stale full-screen loader from cached old builds
           var oldLoader = document.getElementById('avatar-loader');
           if (oldLoader) oldLoader.remove();
           setMsg('Загрузка...');
         });
 
         window.addEventListener('error', function(e) {
+          if (window.__ARAI_READY) return;
           var msg = e.message || 'JS error';
-          if (e.target && e.target.src) msg = 'Файл: ' + e.target.src.split('/').pop();
+          if (e.target && e.target.src) {
+            msg = 'Не загрузился: ' + e.target.src.split('/').pop();
+          }
           showErr('\u26a0 ' + msg);
         }, true);
+
         window.addEventListener('unhandledrejection', function(e) {
+          if (window.__ARAI_READY) return;
           var r = e.reason;
           showErr('\u26a0 ' + (r && r.message ? r.message : String(r || 'Promise error')));
         });
 
-        // Progressive hints — NOT a hard failure at 10 s
+        // Only show hints while app hasn't booted yet
         setTimeout(function() {
-          var el = st();
-          if (el && (el.textContent === INITIAL || el.textContent === 'Загрузка...')) {
-            setMsg('Загрузка 3D... (подожди)');
-          }
-        }, 8000);
+          if (!window.__ARAI_BOOT) setMsg('Загрузка JS...');
+        }, 5000);
 
         setTimeout(function() {
-          var el = st();
-          if (el && el.textContent.indexOf('Загрузка') !== -1) {
-            setMsg('Медленная сеть — ещё загружается...');
-          }
-        }, 20000);
+          if (!window.__ARAI_BOOT) setMsg('Загрузка 3D... (подожди)');
+        }, 15000);
 
+        // Hard error only if main.js never started at all
         setTimeout(function() {
-          var el = st();
-          if (el && (el.textContent === INITIAL || el.textContent.indexOf('Загрузка') !== -1 || el.textContent.indexOf('Медленная') !== -1)) {
-            showErr('\u26a0 Не загрузилось — обнови страницу');
+          if (!window.__ARAI_BOOT) {
+            showErr('\u26a0 JS не стартовал — обнови страницу');
           }
-        }, 45000);
+        }, 60000);
       })();
     </script>
   </head>

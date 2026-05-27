@@ -3,6 +3,8 @@ import { loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld } from './
 import { askAI } from './ai.js';
 import { startListening, speak, isSpeechRecognitionSupported } from './voice.js';
 
+window.__ARAI_BOOT = true;
+
 const video        = document.getElementById('camera');
 const canvas       = document.getElementById('three-canvas');
 const talkBtn      = document.getElementById('talk-btn');
@@ -191,6 +193,7 @@ async function init() {
 
   if (!isSpeechRecognitionSupported()) showTextInput();
   setState('ready');
+  window.__ARAI_READY = true;
   startCamera();
 
   renderer.setAnimationLoop((time, frame) => {

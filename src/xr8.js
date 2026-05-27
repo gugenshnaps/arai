@@ -67,8 +67,18 @@ export function onXR8Ready(callback) {
   }
 }
 
+/** Size the XR canvas to fill the screen (must run while canvas is visible) */
+export function fitXRCanvas(canvas) {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+}
+
 /**
- * Start the 8th Wall SLAM AR session on the given canvas.
  *
  * @param {HTMLCanvasElement} canvas - full-screen canvas for XR8
  * @param {{
@@ -79,6 +89,12 @@ export function onXR8Ready(callback) {
  * }} callbacks
  */
 export function startXR8(canvas, { onSceneReady, onSurfaceFound, onFrame, onAvatarPlace }) {
+  // Canvas must have real dimensions before XR8.run — hidden canvas defaults to 300×150
+  fitXRCanvas(canvas);
+
+  const onResize = () => fitXRCanvas(canvas);
+  window.addEventListener('resize', onResize);
+
   // XR8.Threejs.pipelineModule() requires window.THREE to be set globally.
   // We bundle Three.js via Vite, so expose it here right before XR8 uses it.
   window.THREE = THREE;
@@ -125,6 +141,8 @@ function _buildSceneModule({ onSceneReady, onSurfaceFound, onFrame }) {
     name: 'ar-ai-scene',
 
     onStart: ({ canvas }) => {
+      fitXRCanvas(canvas);
+
       const { scene, camera } = XR8.Threejs.xrScene();
       _scene  = scene;
       _camera = camera;

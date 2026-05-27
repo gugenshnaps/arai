@@ -410,6 +410,26 @@ html, body {
   width: 100%;
   height: 100%;
   z-index: 1;
+  touch-action: none;
+}
+
+/* Fullscreen AR mode — canvas must cover entire viewport */
+body.ar-mode #xr-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+}
+
+body.ar-mode #camera,
+body.ar-mode #three-canvas {
+  display: none !important;
+}
+
+body.ar-mode #ui {
+  z-index: 2;
 }
 
 /* ===== XR8 ENTER AR button ===== */

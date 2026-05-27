@@ -26,7 +26,8 @@ let loadAvatar, updateAvatar, playExpression, placeAvatarAtWorld;
 let askAI;
 let startListening, speak, isSpeechRecognitionSupported;
 let isARSupported, initAR, updateAR, animateARObjects;
-let loadXR8, startXR8;
+let loadXR8, startXR8, fitXRCanvas;
+let mainRenderer = null;
 
 const STATUS_MESSAGES = {
   loading:   'Загрузка...',
@@ -237,6 +238,7 @@ async function init() {
   let scene, camera, renderer;
   try {
     ({ renderer, scene, camera } = buildScene());
+    mainRenderer = renderer;
   } catch (err) {
     console.error('WebGL init failed:', err);
     hideLoader();
@@ -305,7 +307,7 @@ async function enterXR8Mode() {
   try {
     statusText.textContent = 'Загрузка AR движка...';
     if (!loadXR8) {
-      ({ loadXR8, startXR8 } = await import('./xr8.js'));
+      ({ loadXR8, startXR8, fitXRCanvas } = await import('./xr8.js'));
     }
     await loadXR8();
   } catch (err) {
@@ -316,6 +318,11 @@ async function enterXR8Mode() {
   }
 
   xr8Mode = true;
+
+  // Stop the normal Three.js loop — XR8 manages its own render pipeline
+  if (mainRenderer) mainRenderer.setAnimationLoop(null);
+
+  document.body.classList.add('ar-mode');
 
   const xrCanvas = document.getElementById('xr-canvas');
   document.getElementById('camera').style.display = 'none';
@@ -328,6 +335,8 @@ async function enterXR8Mode() {
 
   statusText.textContent = 'Наводи камеру на пол...';
   statusText.classList.remove('error');
+
+  fitXRCanvas(xrCanvas);
 
   startXR8(xrCanvas, {
     onSceneReady: (scene) => {
